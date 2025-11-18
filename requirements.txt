@@ -1,0 +1,15 @@
+fastapi
+pydantic
+uvicorn
+pytest
+SQLAlchemy
+python-dotenv
+psycopg2
+python-jose
+passlib #hash and verify password 
+argon2_cffi
+pyjwt
+python-multipart
+passlib[bcrypt]
+httpx
+'pydantic[email]'
