@@ -35,13 +35,8 @@ pwd_context = CryptContext(schemes=['argon2'], deprecated="auto")
 oauth2_schema = OAuth2PasswordBearer(tokenUrl="token")
 def hashPassword(password:str) -> str:
         return pwd_context.hash(password)
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_access_token(data: dict):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -76,27 +71,37 @@ def verify_password(inserted_password, hashed_real_password):
 import os
 import httpx
 
+def verify_token(token:str) ->dict:
+    try:
+        pyload = jwt.decode(token, SECRET_KEY, algorithms=ALGORITHM)
+        return pyload
+    except :
+        raise HTTPException(
+            status_code=401,
+            detail= "token not verified"
+        )
 
+def verify_user_from_token(decoded:dict, db:Session):
+    try :
+        user= db.query(User).filter(User.email == decoded["sub"]).first()
+        return user.email
+    except:
+        HTTPException(
+            status_code=400,
+            detail= "Access denied"
+        )
 @app.get('/')
-def hello():
-    API_URL = "https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment"
-    headers = {
-    "Authorization": f"Bearer {os.environ['HF_TOKEN']}",
-     }
-
-    def query(payload):
-      response = httpx.post(API_URL, headers=headers, json=payload)
-      return response.json()
-
-    output = query({
-    "inputs": "I like you. I love you",
-     })
-    #[{'label': '5 stars', 'score': 0.7865129113197327}, {'label': '4 stars', 'score': 0.19356273114681244}, {'label': '3 stars', 'score': 0.015475963242352009}, {'label': '2 stars', 'score': 0.0022533689625561237}, {'label': '1 star', 'score': 0.002195027656853199}]
-    max_score= max(output[0], key=lambda x: x['score'])['score']
-
-
-    print(max_score)
-    return 'hello Nextjs'
+def testing(token: Annotated[str, Depends(oauth2_schema)], db:Session=Depends(getdb)):
+    decoded = verify_token(token)
+    try :
+        user_email= verify_user_from_token(decoded, db)
+        return {"em": user_email}
+    except:
+        HTTPException(
+            status_code=400,
+            detail= "Access denied"
+        )
+   
 
 @app.post('/create_user')
 def create_user(user: createUser, db:Session= Depends(getdb)):
@@ -130,7 +135,6 @@ def login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db:Se
      expires_delta = timedelta(minutes=access_token_expires)
      access_token = create_access_token(
           data= {"sub": user.email},
-          expires_delta = expires_delta
      )
      user.token= access_token
      db.add(user)
@@ -138,26 +142,43 @@ def login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db:Se
      db.refresh(user)
      return {"access_token" : access_token, "token_type": "Bearer"}
 @app.post('/predict')
-def score_comment(comment:CreateComment, db:Session = Depends(getdb)):
-     API_URL = "https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment"
-     headers = {
-      "Authorization": f"Bearer {os.environ['HF_TOKEN']}",
-     }
+def score_comment(comment:CreateComment, token: Annotated[str, Depends(oauth2_schema)], db:Session = Depends(getdb)):
+     #
+     decoded = verify_token(token)
+     try :
+        user_email= verify_user_from_token(decoded, db)
+        print(user_email)
+        API_URL = "https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment"
+        headers = {
+           "Authorization": f"Bearer {os.environ['HF_TOKEN']}",
+           }
 
-     def query(payload):
-      response = httpx.post(API_URL, headers=headers, json=payload)
-      return response.json()
+        def query(payload):
+                  response = httpx.post(API_URL, headers=headers, json=payload)
+                  return response.json()
 
-     output = query({
-      "inputs": comment.comment,
-     })
-     max_score= max(output[0], key=lambda x: x['score'])['score']
-     max_score_label= max(output[0], key=lambda x: x['score'])['label']
-     avis= Avis(
+        output = query({
+          "inputs": comment.comment,
+          })
+        print(output)
+        max_score= max(output[0], key=lambda x: x['score'])['score']
+        max_score_label= max(output[0], key=lambda x: x['score'])['label']
+        print(max_score_label)
+        avis= Avis(
            comment= comment.comment,
            score= max_score_label,
            user_id= 1)
-     db.add(avis)
-     db.commit()
-     db.refresh(avis)
-     return "done"
+        db.add(avis)
+        db.commit()
+        db.refresh(avis)
+        return max_score_label
+     except:
+        HTTPException(
+            status_code=400,
+            detail= "Access denied"
+        )
+   
+     #
+
+   
+
