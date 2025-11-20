@@ -7,9 +7,9 @@ class createUser(BaseModel):
     token: Optional[str]=None
 
     
-# class UserResponse(BaseModel):
-#     id: int
-#     email: EmailStr
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
 
     class Config:
         from_attributes= True

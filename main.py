@@ -14,11 +14,23 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 SECRET_KEY= os.getenv('SECRET_KEY')
 ALGORITHM= os.getenv('ALGORITHM')
 
 app=FastAPI()
+origins= [
+     '*',
+]
+app.add_middleware(
+     CORSMiddleware,
+     allow_origins= origins,
+     allow_credentials= True,
+     allow_methods= ['*'],
+     allow_headers= ['*']
+
+)
 if not database_exists(engine.url):
     create_database(engine.url)
 
@@ -148,7 +160,7 @@ def score_comment(comment:CreateComment, token: Annotated[str, Depends(oauth2_sc
      try :
         user_email= verify_user_from_token(decoded, db)
         print(user_email)
-        API_URL = "https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment"
+        API_URL = os.getenv('API_URL_hugging_face')
         headers = {
            "Authorization": f"Bearer {os.environ['HF_TOKEN']}",
            }
