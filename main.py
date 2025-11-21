@@ -146,7 +146,7 @@ def login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db:Se
      return {"access_token" : access_token, "token_type": "Bearer", "user_id": user.id}
 @app.post('/predict')
 def score_comment(comment:CreateComment, token: Annotated[str, Depends(oauth2_schema)], db:Session = Depends(getdb)):
-     #
+     
      decoded = verify_token(token)
      try :
         user_email, user_id= verify_user_from_token(decoded, db)

@@ -24,5 +24,5 @@ class TokenData(BaseModel):
     
 class CreateComment(BaseModel):
     comment: str
-    score: Optional[str]=None
+    # score: Optional[str]=None
     id_user: int
