@@ -96,23 +96,13 @@ def verify_token(token:str) ->dict:
 def verify_user_from_token(decoded:dict, db:Session):
     try :
         user= db.query(User).filter(User.email == decoded["sub"]).first()
-        return user.email
+        return user.email, user.id
     except:
         HTTPException(
             status_code=400,
             detail= "Access denied"
         )
-@app.get('/')
-def testing(token: Annotated[str, Depends(oauth2_schema)], db:Session=Depends(getdb)):
-    decoded = verify_token(token)
-    try :
-        user_email= verify_user_from_token(decoded, db)
-        return {"em": user_email}
-    except:
-        HTTPException(
-            status_code=400,
-            detail= "Access denied"
-        )
+
    
 
 @app.post('/create_user')
@@ -135,7 +125,7 @@ def create_user(user: createUser, db:Session= Depends(getdb)):
      db.refresh(user_db)
      return user_db
 
-@app.post('/login', response_model= Token)
+@app.post('/login')
 def login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db:Session=Depends(getdb)):
      user= db.query(User).filter(User.email == form_data.username).first()
      if not user or not verify_password(form_data.password, user.password):
@@ -144,22 +134,24 @@ def login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db:Se
                detail= "Wrong Email or Password"
           )
      access_token_expires = int(os.getenv('TOKEN_EXPIRES', 30))  # convert to int
-     expires_delta = timedelta(minutes=access_token_expires)
+    #  expires_delta = timedelta(minutes=access_token_expires)
      access_token = create_access_token(
           data= {"sub": user.email},
      )
+     print(user.id)
      user.token= access_token
      db.add(user)
      db.commit()
      db.refresh(user)
-     return {"access_token" : access_token, "token_type": "Bearer"}
+     return {"access_token" : access_token, "token_type": "Bearer", "user_id": user.id}
 @app.post('/predict')
 def score_comment(comment:CreateComment, token: Annotated[str, Depends(oauth2_schema)], db:Session = Depends(getdb)):
      #
      decoded = verify_token(token)
      try :
-        user_email= verify_user_from_token(decoded, db)
-        print(user_email)
+        user_email, user_id= verify_user_from_token(decoded, db)
+       
+
         API_URL = os.getenv('API_URL_hugging_face')
         headers = {
            "Authorization": f"Bearer {os.environ['HF_TOKEN']}",
@@ -179,18 +171,27 @@ def score_comment(comment:CreateComment, token: Annotated[str, Depends(oauth2_sc
         avis= Avis(
            comment= comment.comment,
            score= max_score_label,
-           user_id= 1)
+           user_id= user_id)
         db.add(avis)
         db.commit()
         db.refresh(avis)
-        return max_score_label
+        return max_score_label,user_id
      except:
         HTTPException(
             status_code=400,
             detail= "Access denied"
         )
    
-     #
+@app.get('/user')
+def u(db:Session= Depends(getdb)):
+     user= db.query(User).all()
+     print(user)
+     return {"users": user}
+@app.get('/comments')
+def u(db:Session= Depends(getdb)):
+     comment= db.query(Avis).all()
+     print(comment)
+     return {"comments": comment}
 
-   
+
 
