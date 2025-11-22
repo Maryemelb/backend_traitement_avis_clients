@@ -12,4 +12,5 @@ pyjwt
 python-multipart
 passlib[bcrypt]
 httpx
-'pydantic[email]'
+pydantic[email]
+sqlalchemy_utils
